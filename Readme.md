@@ -10,7 +10,7 @@
 
 `brownie test --network mainnet-fork`
 
-## Test in rinkeby network
+## Test in rinkeby network(TODO)
 
 ```bash
 brownie test -k test_can_pick_winner --network rinkeby -s
