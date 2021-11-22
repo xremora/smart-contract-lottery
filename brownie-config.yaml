@@ -1,13 +1,12 @@
 dependencies:
   - smartcontractkit/chainlink-brownie-contracts@1.1.1
   - OpenZeppelin/openzeppelin-contracts@3.4.0
-
 compiler:
   solc:
     remappings:
       - '@chainlink=smartcontractkit/chainlink-brownie-contracts@1.1.1'
       - '@openzeppelin=OpenZeppelin/openzeppelin-contracts@3.4.0'
-
+dotenv: .env
 networks:
   default: development
   development:
@@ -24,4 +23,3 @@ networks:
     eth_usd_price_feed: '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419'
 wallets:
   from_key: ${PRIVATE_KEY}
-dotenv: .env

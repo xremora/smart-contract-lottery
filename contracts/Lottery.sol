@@ -1,28 +1,29 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.6.6;
+pragma solidity ^0.6.6;
 
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
-import "@chainlink/contracts/src/v0.6/VRFConsumerBase.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@chainlink/contracts/src/v0.6/VRFConsumerBase.sol";
 
-// 0x9326BFA02ADD2366b30bacB125260Af641031331;
-contract Lottery is Ownable, VRFConsumerBase {
+contract Lottery is VRFConsumerBase, Ownable {
     address payable[] public players;
     address payable public recentWinner;
     uint256 public randomness;
-
-    uint152 public USDEntryFee;
-    AggregatorV3Interface internal ethUdPriceFeed;
-    uint256 public fee;
-    bytes32 public keyhash;
-
+    uint256 public usdEntryFee;
+    AggregatorV3Interface internal ethUsdPriceFeed;
     enum LOTTERY_STATE {
         OPEN,
         CLOSED,
         CALCULATING_WINNER
     }
-
     LOTTERY_STATE public lottery_state;
+    uint256 public fee;
+    bytes32 public keyhash;
+    event RequestedRandomness(bytes32 requestId);
+
+    // 0
+    // 1
+    // 2
 
     constructor(
         address _priceFeedAddress,
@@ -31,41 +32,52 @@ contract Lottery is Ownable, VRFConsumerBase {
         uint256 _fee,
         bytes32 _keyhash
     ) public VRFConsumerBase(_vrfCoordinator, _link) {
-        USDEntryFee = 50 * (10**18);
-        ethUdPriceFeed = AggregatorV3Interface(_priceFeedAddress);
-        lottery_state = LOTTERY_STATE.CLOSED; // or just 1
+        usdEntryFee = 50 * (10**18);
+        ethUsdPriceFeed = AggregatorV3Interface(_priceFeedAddress);
+        lottery_state = LOTTERY_STATE.CLOSED;
         fee = _fee;
         keyhash = _keyhash;
     }
 
     function enter() public payable {
-        // entry guard
+        // $50 minimum
+        require(lottery_state == LOTTERY_STATE.OPEN);
         require(msg.value >= getEntranceFee(), "Not enough ETH!");
-        require(lottery_state == LOTTERY_STATE.OPEN, "Not available!");
         players.push(msg.sender);
     }
 
-    function getEntranceFee() public returns (uint256) {
-        // TODO: integrate safemath ?
-        // the `price` is in 8 decimals format
-        (, int256 price, , , ) = ethUdPriceFeed.latestRoundData();
-        uint256 adjustedPrice = uint256(price) * 10**10; // 18 decimals format
-        uint256 costToEnter = (USDEntryFee * 10**18) / adjustedPrice;
+    function getEntranceFee() public view returns (uint256) {
+        (, int256 price, , , ) = ethUsdPriceFeed.latestRoundData();
+        uint256 adjustedPrice = uint256(price) * 10**10; // 18 decimals
+        // $50, $2,000 / ETH
+        // 50/2,000
+        // 50 * 100000 / 2000
+        uint256 costToEnter = (usdEntryFee * 10**18) / adjustedPrice;
         return costToEnter;
     }
 
-    // managed by admin
     function startLottery() public onlyOwner {
         require(
             lottery_state == LOTTERY_STATE.CLOSED,
-            "Can't start a new lottery now!"
+            "Can't start a new lottery yet!"
         );
         lottery_state = LOTTERY_STATE.OPEN;
     }
 
     function endLottery() public onlyOwner {
+        // uint256(
+        //     keccack256(
+        //         abi.encodePacked(
+        //             nonce, // nonce is preditable (aka, transaction number)
+        //             msg.sender, // msg.sender is predictable
+        //             block.difficulty, // can actually be manipulated by the miners!
+        //             block.timestamp // timestamp is predictable
+        //         )
+        //     )
+        // ) % players.length;
         lottery_state = LOTTERY_STATE.CALCULATING_WINNER;
         bytes32 requestId = requestRandomness(keyhash, fee);
+        emit RequestedRandomness(requestId);
     }
 
     function fulfillRandomness(bytes32 _requestId, uint256 _randomness)
@@ -74,14 +86,13 @@ contract Lottery is Ownable, VRFConsumerBase {
     {
         require(
             lottery_state == LOTTERY_STATE.CALCULATING_WINNER,
-            "Youre not there yet!"
+            "You aren't there yet!"
         );
         require(_randomness > 0, "random-not-found");
         uint256 indexOfWinner = _randomness % players.length;
         recentWinner = players[indexOfWinner];
         recentWinner.transfer(address(this).balance);
-
-        // reset
+        // Reset
         players = new address payable[](0);
         lottery_state = LOTTERY_STATE.CLOSED;
         randomness = _randomness;

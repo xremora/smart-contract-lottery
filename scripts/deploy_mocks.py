@@ -1,4 +1,4 @@
-from useful_scripts import deploy_mocks
+from scripts.useful_scripts import deploy_mocks
 
 
 def main():
